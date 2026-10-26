@@ -1,0 +1,34 @@
+name: Manual fake-canary security lab
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Fixed classroom experiment (some intentionally exit 1)
+        required: true
+        default: retest
+        type: choice
+        options: [clean, weak, rules, guard, dontask, hardened, toolpoison, isolation, retest]
+permissions:
+  contents: read
+jobs:
+  agent:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: docker build -t claude-sdk-lesson57:local docker
+      - name: Run isolated real SDK evaluations
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CI_DEMO_MODE: ${{ inputs.mode }}
+        run: |
+          node -e 'if (!process.env.ANTHROPIC_API_KEY) { console.error("Configure the ANTHROPIC_API_KEY repository secret first."); process.exit(78); }'
+          npm run pipeline -- "$CI_DEMO_MODE"
